@@ -1,0 +1,213 @@
+﻿@page "/livros"
+@using BibliotecaBlazor.Models
+@inject LivroService LivroService
+@inject GeneroService GeneroService
+@inject AutorService AutorService
+
+<h3>Livros</h3>
+
+<div class="filter-container">
+    <label for="filtro">Filtrar:</label>
+    <input id="filtro" @oninput="AtualizarFiltro" placeholder="Digite para filtrar" />
+</div>
+
+@if (livrosFiltrados == null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Título</th>
+                <th>Gênero</th>
+                <th>Autor</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var livro in livrosFiltrados)
+            {
+                <tr>
+                    <td class="table-content">@livro.Titulo</td>
+                    <td class="table-content">@livro.GeneroNome</td>
+                    <td class="table-content">@livro.AutorNome</td>
+                    <td>
+                        <button class="btn-edit" @onclick="() => EditarLivro(livro)">Editar</button>
+                        <button class="btn-remove" @onclick="() => RemoverLivro(livro.ID)">Remover</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="btn-add" @onclick="AdicionarNovoLivro">Adicionar Novo Livro</button>
+}
+
+@code {
+    private List<Livro>? livros;
+    private List<Livro>? livrosFiltrados;
+    private List<Genero>? generos;
+    private List<Autor>? autores;
+    private string filtro = string.Empty;
+    private Livro novoLivro = new Livro();
+    private Livro? livroEditando;
+    private bool exibirFormularioAdicionar = false;
+    private bool exibirFormularioEditar = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        livros = await LivroService.GetLivros();
+        generos = await GeneroService.GetGeneros();
+        autores = await AutorService.GetAutores();
+        livrosFiltrados = livros;
+    }
+
+    private async Task AtualizarFiltro(ChangeEventArgs e)
+    {
+        filtro = e.Value?.ToString() ?? string.Empty;
+        await Task.Delay(50);
+        AplicarFiltro();
+    }
+
+    private void AplicarFiltro()
+    {
+        if (livros == null) return;
+        livrosFiltrados = string.IsNullOrEmpty(filtro)
+            ? livros
+            : livros.Where(l => (l.Titulo?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                                (l.GeneroNome?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                                (l.AutorNome?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+        StateHasChanged();  // Força o Blazor a renderizar o componente
+    }
+
+    private void AdicionarNovoLivro()
+    {
+        exibirFormularioAdicionar = true;
+    }
+
+    private async Task SalvarNovoLivro()
+    {
+        novoLivro.GeneroNome = generos.FirstOrDefault(g => g.ID == novoLivro.GeneroID)?.Nome ?? "";
+        novoLivro.AutorNome = autores.FirstOrDefault(a => a.ID == novoLivro.AutorID)?.Nome ?? "";
+
+        var response = await LivroService.AddLivro(novoLivro);
+
+       
+        if (response.IsSuccessStatusCode)
+        {
+            livros = await LivroService.GetLivros();
+            livrosFiltrados = livros;
+            exibirFormularioAdicionar = false;
+            novoLivro = new Livro(); // Reseta o formulário
+        }
+    }
+
+    private void CancelarAdicao()
+    {
+        exibirFormularioAdicionar = false;
+        novoLivro = new Livro();
+    }
+
+    private void EditarLivro(Livro livro)
+    {
+        livroEditando = livro;
+        exibirFormularioEditar = true;
+    }
+
+    private async Task SalvarEdicaoLivro()
+    {
+        await LivroService.UpdateLivro(livroEditando);
+        livros = await LivroService.GetLivros();
+        livrosFiltrados = livros;
+        exibirFormularioEditar = false;
+        livroEditando = null;
+    }
+
+    private void CancelarEdicao()
+    {
+        exibirFormularioEditar = false;
+        livroEditando = null;
+    }
+
+    private async Task RemoverLivro(int id)
+    {
+        await LivroService.DeleteLivro(id);
+        livros = await LivroService.GetLivros(); // Atualiza a lista
+        livrosFiltrados = livros;
+    }
+}
+
+@if (exibirFormularioAdicionar)
+{
+    <div class="form-container">
+        <h4>Adicionar Novo Livro</h4>
+        <div>
+            <label>Título:</label>
+            <input @bind="novoLivro.Titulo" />
+        </div>
+        <div>
+            <label>Ano de Publicação:</label>
+            <input type="number" @bind="novoLivro.AnoPublicacao" />
+        </div>
+        <div>
+            <label>Gênero:</label>
+            <select @bind="novoLivro.GeneroID">
+                <option value="">Selecione um Gênero</option>
+                @foreach (var genero in generos ?? new List<Genero>())
+                {
+                    <option value="@genero.ID">@genero.Nome</option>
+                }
+            </select>
+        </div>
+        <div style="padding-bottom:1rem">
+            <label>Autor:</label>
+            <select @bind="novoLivro.AutorID">
+                <option value="">Selecione um Autor</option>
+                @foreach (var autor in autores ?? new List<Autor>())
+                {
+                    <option value="@autor.ID">@autor.Nome</option>
+                }
+            </select>
+        </div>
+        <button class="btn-save" @onclick="SalvarNovoLivro">Salvar</button>
+        <button class="btn-cancel" @onclick="CancelarAdicao">Cancelar</button>
+    </div>
+}
+
+@if (exibirFormularioEditar)
+{
+    <div class="form-container">
+        <h4>Editar Livro</h4>
+        <div>
+            <label>Título:</label>
+            <input @bind="livroEditando.Titulo" />
+        </div>
+        <div>
+            <label>Ano de Publicação:</label>
+            <input type="number" @bind="livroEditando.AnoPublicacao" />
+        </div>
+        <div>
+            <label>Gênero:</label>
+            <select @bind="livroEditando.GeneroID">
+                <option value="">Selecione um Gênero</option>
+                @foreach (var genero in generos ?? new List<Genero>())
+                {
+                    <option value="@genero.ID">@genero.Nome</option>
+                }
+            </select>
+        </div>
+        <div style="padding-bottom:1rem">
+            <label>Autor:</label>
+            <select @bind="livroEditando.AutorID">
+                <option value="">Selecione um Autor</option>
+                @foreach (var autor in autores ?? new List<Autor>())
+                {
+                    <option value="@autor.ID">@autor.Nome</option>
+                }
+            </select>
+        </div>
+        <button class="btn-save" @onclick="SalvarEdicaoLivro">Salvar</button>
+        <button class="btn-cancel" @onclick="CancelarEdicao">Cancelar</button>
+    </div>
+}

@@ -1,0 +1,186 @@
+﻿@page "/generos"
+@using BibliotecaBlazor.Models
+@inject GeneroService GeneroService
+
+<h3>Gêneros</h3>
+
+<div class="filter-container">
+    <label for="filtro">Filtrar:</label>
+    <input id="filtro" @oninput="AtualizarFiltro" placeholder="Digite para filtrar" />
+</div>
+
+@if (exibirModal)
+{
+    <div class="modal">
+        <div class="modal-content">
+            <span class="close" @onclick="FecharModal">&times;</span>
+            <p>@mensagemModal</p>
+        </div>
+    </div>
+}
+
+@if (generosFiltrados == null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Descrição</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var genero in generosFiltrados)
+            {
+                <tr>
+                    <td class="table-content">@genero.Nome</td>
+                    <td class="table-content">@genero.Descricao</td>
+                    <td>
+                        <button class="btn-edit" @onclick="() => EditarGenero(genero)">Editar</button>
+                        <button class="btn-remove" @onclick="() => RemoverGenero(genero.ID)">Remover</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="btn-add" @onclick="AdicionarNovoGenero">Adicionar Novo Gênero</button>
+}
+
+@code {
+    private List<Genero>? generos;
+    private List<Genero>? generosFiltrados;
+    private string filtro = string.Empty;
+    private Genero novoGenero = new Genero();
+    private Genero? generoEditando;
+    private bool exibirFormularioAdicionar = false;
+    private bool exibirFormularioEditar = false;
+    private bool exibirModal = false;
+    private string mensagemModal = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        generos = await GeneroService.GetGeneros();
+        generosFiltrados = generos;
+    }
+
+    private async Task AtualizarFiltro(ChangeEventArgs e)
+    {
+        filtro = e.Value?.ToString() ?? string.Empty;
+        await Task.Delay(50);
+        AplicarFiltro();
+    }
+
+    private void AplicarFiltro()
+    {
+        if (generos == null) return;
+        generosFiltrados = string.IsNullOrEmpty(filtro)
+            ? generos
+            : generos.Where(g => (g.Nome?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                                 (g.Descricao?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+        StateHasChanged();
+    }
+
+    private void AdicionarNovoGenero()
+    {
+        exibirFormularioAdicionar = true;
+    }
+
+    private async Task SalvarNovoGenero()
+    {
+        await GeneroService.AddGenero(novoGenero);
+        generos = await GeneroService.GetGeneros();
+        generosFiltrados = generos;
+        exibirFormularioAdicionar = false;
+        novoGenero = new Genero();
+    }
+
+    private void CancelarAdicao()
+    {
+        exibirFormularioAdicionar = false;
+        novoGenero = new Genero();
+    }
+
+    private void EditarGenero(Genero genero)
+    {
+        generoEditando = new Genero
+            {
+                ID = genero.ID,
+                Nome = genero.Nome,
+                Descricao = genero.Descricao
+            };
+        exibirFormularioEditar = true;
+    }
+
+    private async Task SalvarEdicaoGenero()
+    {
+        await GeneroService.UpdateGenero(generoEditando);
+        generos = await GeneroService.GetGeneros();
+        generosFiltrados = generos;
+        exibirFormularioEditar = false;
+        generoEditando = null;
+    }
+
+    private void CancelarEdicao()
+    {
+        exibirFormularioEditar = false;
+        generoEditando = null;
+    }
+
+    private async Task RemoverGenero(int id)
+    {
+        var response =  await GeneroService.DeleteGenero(id);
+        if (response.IsSuccessStatusCode)
+        {
+            generos = await GeneroService.GetGeneros(); // Atualiza a lista
+            generosFiltrados = generos;
+            
+        }
+        else
+        {
+            mensagemModal = "Erro ao remover Genero: " + response.ReasonPhrase;
+            exibirModal = true;
+        }
+    }
+    private void FecharModal()
+    {
+        exibirModal = false;
+    }
+}
+
+@if (exibirFormularioAdicionar)
+{
+    <div class="form-container">
+        <h4>Adicionar Novo Gênero</h4>
+        <div>
+            <label>Nome:</label>
+            <input @bind="novoGenero.Nome" />
+        </div>
+        <div>
+            <label>Descrição:</label>
+            <textarea @bind="novoGenero.Descricao"></textarea>
+        </div>
+        <button class="btn-save" @onclick="SalvarNovoGenero">Salvar</button>
+        <button class="btn-cancel" @onclick="CancelarAdicao">Cancelar</button>
+    </div>
+}
+
+@if (exibirFormularioEditar)
+{
+    <div class="form-container">
+        <h4>Editar Gênero</h4>
+        <div>
+            <label>Nome:</label>
+            <input @bind="generoEditando.Nome" />
+        </div>
+        <div>
+            <label>Descrição:</label>
+            <textarea @bind="generoEditando.Descricao"></textarea>
+        </div>
+        <button class="btn-save" @onclick="SalvarEdicaoGenero">Salvar</button>
+        <button class="btn-cancel" @onclick="CancelarEdicao">Cancelar</button>
+    </div>
+}

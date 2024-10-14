@@ -1,0 +1,182 @@
+﻿@page "/autores"
+@using BibliotecaBlazor.Models
+@inject AutorService AutorService
+@inject IJSRuntime JSRuntime
+
+<h3>Autores</h3>
+
+<div class="filter-container">
+    <label for="filtro">Filtrar:</label>
+    <input id="filtro" @bind="filtro"  @oninput="AtualizarFiltro" placeholder="Digite para filtrar" />
+</div>
+
+@if (exibirModal)
+{
+    <div class="modal">
+        <div class="modal-content">
+            <span class="close" @onclick="FecharModal">&times;</span>
+            <p>@mensagemModal</p>
+        </div>
+    </div>
+}
+
+@if (autoresFiltrados == null)
+{
+    <p><em>Carregando...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Biografia</th>
+                <th>Ações</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var autor in autoresFiltrados)
+            {
+                <tr>
+                    <td class="table-content">@autor.Nome</td>
+                    <td class="table-content">@autor.Biografia</td>
+                    <td>
+                        <button class="btn-edit" @onclick="() => EditarAutor(autor)">Editar</button>
+                        <button class="btn-remove" @onclick="() => RemoverAutor(autor.ID)">Remover</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <button class="btn-add" @onclick="AdicionarNovoAutor">Adicionar Novo Autor</button>
+}
+
+@code {
+    private List<Autor>? autores;
+    private List<Autor>? autoresFiltrados;
+    private string filtro = string.Empty;
+    private Autor novoAutor = new Autor();
+    private Autor? autorEditando;
+    private bool exibirFormularioAdicionar = false;
+    private bool exibirFormularioEditar = false;
+    private bool exibirModal = false;
+    private string mensagemModal = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        autores = await AutorService.GetAutores();
+        autoresFiltrados = autores;
+    }
+    private async Task AtualizarFiltro(ChangeEventArgs e)
+    {
+        filtro = e.Value?.ToString() ?? string.Empty;        
+        await Task.Delay(50);
+        AplicarFiltro();
+    }
+
+    private void AplicarFiltro()
+    {
+        if (autores == null) return;
+        autoresFiltrados =  string.IsNullOrEmpty(filtro)
+            ? autores
+            : autores.Where(a => (a.Nome?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                                 (a.Biografia?.Contains(filtro, StringComparison.OrdinalIgnoreCase) ?? false)).ToList();
+        StateHasChanged();
+    }
+
+    private void AdicionarNovoAutor()
+    {
+        exibirFormularioAdicionar = true;
+    }
+
+    private async Task SalvarNovoAutor()
+    {
+        await AutorService.AddAutor(novoAutor);
+
+        autores = await AutorService.GetAutores();
+        autoresFiltrados = autores;
+        exibirFormularioAdicionar = false;
+        novoAutor = new Autor();
+
+    }
+
+    private void CancelarAdicao()
+    {
+        exibirFormularioAdicionar = false;
+        novoAutor = new Autor();
+    }
+
+    private void EditarAutor(Autor autor)
+    {
+        autorEditando = autor;
+        exibirFormularioEditar = true;
+    }
+
+    private async Task SalvarEdicaoAutor()
+    {
+        await AutorService.UpdateAutor(autorEditando);
+        autores = await AutorService.GetAutores();
+        autoresFiltrados = autores;
+        exibirFormularioEditar = false;
+        autorEditando = null;
+    }
+
+    private void CancelarEdicao()
+    {
+        exibirFormularioEditar = false;
+        autorEditando = null;
+    }
+
+    private async Task RemoverAutor(int id)
+    {
+        var response = await AutorService.DeleteAutor(id);
+        if (response.IsSuccessStatusCode)
+        {
+            autores = await AutorService.GetAutores(); // Atualiza a lista
+            autoresFiltrados = autores;
+        }
+        else
+        {
+            mensagemModal = "Erro ao remover autor: " + response.ReasonPhrase;
+            exibirModal = true;
+        }
+    }
+    private void FecharModal()
+    {
+        exibirModal = false;
+    }
+}
+
+@if (exibirFormularioAdicionar)
+{
+    <div class="form-container">
+        <h4>Adicionar Novo Autor</h4>
+        <div>
+            <label>Nome:</label>
+            <input @bind="novoAutor.Nome" />
+        </div>
+        <div>
+            <label>Biografia:</label>
+            <textarea @bind="novoAutor.Biografia"></textarea>
+        </div>
+        <button class="btn-save" @onclick="SalvarNovoAutor">Salvar</button>
+        <button class="btn-cancel" @onclick="CancelarAdicao">Cancelar</button>
+    </div>
+}
+
+@if (exibirFormularioEditar)
+{
+    <div class="form-container">
+        <h4>Editar Autor</h4>
+        <div>
+            <label>Nome:</label>
+            <input @bind="autorEditando.Nome" />
+        </div>
+        <div>
+            <label>Biografia:</label>
+            <textarea @bind="autorEditando.Biografia"></textarea>
+        </div>
+        <button class="btn-save" @onclick="SalvarEdicaoAutor">Salvar</button>
+        <button class="btn-cancel" @onclick="CancelarEdicao">Cancelar</button>
+    </div>
+}
